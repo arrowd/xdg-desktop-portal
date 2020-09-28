@@ -28,7 +28,14 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
+#ifdef HAVE_MNTENT_H
+#endif
+#ifdef HAVE_SYS_VFS_H
 #include <sys/vfs.h>
+#endif
+#ifdef HAVE_SYS_MOUNT_H
+#include <sys/mount.h>
+#endif
 
 #include <gio/gdesktopappinfo.h>
 
@@ -803,7 +810,7 @@ xdp_filter_options (GVariant *options,
 
           continue;
         }
-         
+
       if (supported_options[i].validate)
         {
           g_autoptr(GError) local_error = NULL;
@@ -955,6 +962,7 @@ xdp_app_info_get_path_for_fd (XdpAppInfo *app_info,
   if (path == NULL)
     return NULL;
 
+#ifdef O_PATH
   if ((fd_flags & O_PATH) == O_PATH)
     {
       int read_access_mode;
@@ -990,6 +998,7 @@ xdp_app_info_get_path_for_fd (XdpAppInfo *app_info,
         writable = TRUE;
     }
   else /* Regular file with no O_PATH */
+#endif // O_PATH
     {
       int accmode = fd_flags & O_ACCMODE;
 
