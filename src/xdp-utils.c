@@ -29,7 +29,14 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
+#ifdef HAVE_MNTENT_H
+#endif
+#ifdef HAVE_SYS_VFS_H
 #include <sys/vfs.h>
+#endif
+#ifdef HAVE_SYS_MOUNT_H
+#include <sys/mount.h>
+#endif
 
 #include <gio/gdesktopappinfo.h>
 
@@ -815,7 +822,7 @@ xdp_filter_options (GVariant *options,
 
           continue;
         }
-         
+
       if (supported_options[i].validate)
         {
           g_autoptr(GError) local_error = NULL;
