@@ -1516,9 +1516,11 @@ xdp_fuse_setattr (fuse_req_t             req,
         return xdp_reply_err (op, req, -res);
     }
 
+#ifndef __FreeBSD__
   if (inode->physical)
     res = fstatat (inode->physical->fd, "", &buf, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
   else
+#endif
     res = stat (inode->domain->doc_path, &buf); /* Follow symlinks here */
 
   if (res != 0)
@@ -1577,7 +1579,11 @@ ensure_docdir_inode (XdpInode *parent,
   struct stat buf;
   int res;
 
+#ifndef __FreeBSD__
   res = fstatat (o_path_fd, "", &buf, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+#else
+  res = fstat (o_path_fd, &buf);
+#endif
   if (res == -1)
     return -errno;
 
