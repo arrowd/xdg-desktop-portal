@@ -51,6 +51,8 @@
 #endif
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 #include "document-portal-fuse.h"
 #include "document-store.h"
@@ -3220,9 +3222,6 @@ xdp_fuse_init_cb (void                  *userdata,
 
   g_debug ("INIT");
 
-  /* atomic_o_trunc: We handle O_TRUNC in create() */
-  conn->want |= FUSE_CAP_ATOMIC_O_TRUNC;
-
   if (fuse_opts->use_splice)
     {
       /* splice_read: use splice() to read from fuse pipe */
@@ -3325,7 +3324,7 @@ xdp_fuse_thread (gpointer data)
    *  auto_unmount: Tell fusermount to auto unmount if we die.
    */
   static char *fusermount_argv[] = {
-    "xdp-fuse", "-osubtype=portal,fsname=portal,auto_unmount",
+    "xdp-fuse", "-osubtype=portal,fsname=portal",
   };
   g_auto(XdpAutoFuseArgs) args =
     FUSE_ARGS_INIT (G_N_ELEMENTS (fusermount_argv), fusermount_argv);
@@ -3337,6 +3336,9 @@ xdp_fuse_thread (gpointer data)
   XdpFuseOptions* fuse_opts = NULL;
   struct fuse_cmdline_opts opts = {0};
   struct fuse_loop_config loop_config = {0};
+  int devd_sock;
+  struct sockaddr_un devd_saddr;
+  char devd_buff[1024];
 
   locker = g_mutex_locker_new (&thread_data->lock);
   fuse_pthread = pthread_self ();
@@ -3352,7 +3354,7 @@ xdp_fuse_thread (gpointer data)
     }
 
   fuse_opts = g_new0 (XdpFuseOptions, 1);
-  fuse_opts->use_splice = TRUE;
+  fuse_opts->use_splice = FALSE;
 
   se = fuse_session_new (&args, &xdp_fuse_oper,
                          sizeof (xdp_fuse_oper), fuse_opts);
@@ -3373,12 +3375,40 @@ xdp_fuse_thread (gpointer data)
     }
 
   path = xdp_fuse_get_mountpoint ();
+  devd_sock = socket(PF_LOCAL, SOCK_SEQPACKET, 0);
+  if (devd_sock < 0)
+    {
+      fuse_session_destroy (se);
+      g_set_error (&thread_data->error, XDG_DESKTOP_PORTAL_ERROR,
+                   XDG_DESKTOP_PORTAL_ERROR_FAILED,
+                   "Can't create socket: %s", strerror(errno));
+      return NULL;
+    }
+  memset(&devd_saddr, 0, sizeof(devd_saddr));
+  devd_saddr.sun_family = AF_UNIX;
+  strcpy(devd_saddr.sun_path, "/var/run/devd.seqpacket.pipe");
+  if (connect(devd_sock, (struct sockaddr *)&devd_saddr, sizeof(devd_saddr)) == -1)
+    {
+      fuse_session_destroy (se);
+      g_set_error (&thread_data->error, XDG_DESKTOP_PORTAL_ERROR,
+                   XDG_DESKTOP_PORTAL_ERROR_FAILED,
+                   "Can't connect socket: %s", strerror(errno));
+      return NULL;
+    }
   if (fuse_session_mount (se, path) != 0)
     {
       fuse_session_destroy (se);
       g_set_error (&thread_data->error, XDG_DESKTOP_PORTAL_ERROR,
                    XDG_DESKTOP_PORTAL_ERROR_FAILED,
                    "Can't mount path %s", path);
+      return NULL;
+    }
+  if (read(devd_sock, devd_buff, sizeof(devd_buff)) < 0)
+    {
+      fuse_session_destroy (se);
+      g_set_error (&thread_data->error, XDG_DESKTOP_PORTAL_ERROR,
+                   XDG_DESKTOP_PORTAL_ERROR_FAILED,
+                   "Can't read devd %s:", strerror(errno));
       return NULL;
     }
 
