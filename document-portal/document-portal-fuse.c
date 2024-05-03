@@ -53,6 +53,8 @@
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/types.h>
+#include <sys/user.h>
 
 #include "document-portal-fuse.h"
 #include "document-store.h"
@@ -301,7 +303,12 @@ app_can_see_doc (PermissionDbEntry *entry, const char *app_id)
 static char *
 fd_to_path (int fd)
 {
-  return g_strdup_printf ("/proc/self/fd/%d", fd);
+  int ret;
+  struct kinfo_file kf;
+
+  kf.kf_structsize = sizeof(kf);
+  ret = fcntl(fd, F_KINFO, &kf);
+  return g_strdup (kf.kf_path);
 }
 
 static char *
