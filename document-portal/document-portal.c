@@ -1482,9 +1482,13 @@ on_name_acquired (GDBusConnection *connection,
 {
   struct stat stbuf;
   gpointer invocation;
+  dev_t parent_dev;
+  int count = 0;
 
   g_debug ("%s acquired", name);
 
+  stat (xdp_fuse_get_mountpoint (), &stbuf);
+  parent_dev = stbuf.st_dev;
   if (!xdp_fuse_init (&exit_error))
     {
       final_exit_status = 6;
@@ -1493,15 +1497,11 @@ on_name_acquired (GDBusConnection *connection,
       return;
     }
 
-  if (stat (xdp_fuse_get_mountpoint (), &stbuf) != 0)
-    {
-      g_set_error (&exit_error, G_DBUS_ERROR, G_DBUS_ERROR_FAILED, "fuse stat failed: %s", g_strerror (errno));
-      final_exit_status = 7;
-      g_printerr ("fuse stat failed: %s", g_strerror (errno));
-      g_main_loop_quit (loop);
-      return;
-    }
-
+  g_usleep (10000); /* 10ms */
+  count = 0;
+  while ((stat (xdp_fuse_get_mountpoint (), &stbuf) == -1 || parent_dev == 0 || stbuf.st_dev == parent_dev) && count < 10)
+    g_usleep (10000); /* 10ms */
+  
   fuse_dev = stbuf.st_dev;
 
   xdp_set_documents_mountpoint (xdp_fuse_get_mountpoint ());
