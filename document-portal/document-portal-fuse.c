@@ -303,11 +303,10 @@ app_can_see_doc (PermissionDbEntry *entry, const char *app_id)
 static char *
 fd_to_path (int fd)
 {
-  int ret;
   struct kinfo_file kf;
 
   kf.kf_structsize = sizeof(kf);
-  ret = fcntl(fd, F_KINFO, &kf);
+  fcntl(fd, F_KINFO, &kf);
   return g_strdup (kf.kf_path);
 }
 
@@ -3343,9 +3342,6 @@ xdp_fuse_thread (gpointer data)
   XdpFuseOptions* fuse_opts = NULL;
   struct fuse_cmdline_opts opts = {0};
   struct fuse_loop_config loop_config = {0};
-  int devd_sock;
-  struct sockaddr_un devd_saddr;
-  char devd_buff[1024];
 
   locker = g_mutex_locker_new (&thread_data->lock);
   fuse_pthread = pthread_self ();
@@ -3382,40 +3378,12 @@ xdp_fuse_thread (gpointer data)
     }
 
   path = xdp_fuse_get_mountpoint ();
-  devd_sock = socket(PF_LOCAL, SOCK_SEQPACKET, 0);
-  if (devd_sock < 0)
-    {
-      fuse_session_destroy (se);
-      g_set_error (&thread_data->error, XDG_DESKTOP_PORTAL_ERROR,
-                   XDG_DESKTOP_PORTAL_ERROR_FAILED,
-                   "Can't create socket: %s", strerror(errno));
-      return NULL;
-    }
-  memset(&devd_saddr, 0, sizeof(devd_saddr));
-  devd_saddr.sun_family = AF_UNIX;
-  strcpy(devd_saddr.sun_path, "/var/run/devd.seqpacket.pipe");
-  if (connect(devd_sock, (struct sockaddr *)&devd_saddr, sizeof(devd_saddr)) == -1)
-    {
-      fuse_session_destroy (se);
-      g_set_error (&thread_data->error, XDG_DESKTOP_PORTAL_ERROR,
-                   XDG_DESKTOP_PORTAL_ERROR_FAILED,
-                   "Can't connect socket: %s", strerror(errno));
-      return NULL;
-    }
   if (fuse_session_mount (se, path) != 0)
     {
       fuse_session_destroy (se);
       g_set_error (&thread_data->error, XDG_DESKTOP_PORTAL_ERROR,
                    XDG_DESKTOP_PORTAL_ERROR_FAILED,
                    "Can't mount path %s", path);
-      return NULL;
-    }
-  if (read(devd_sock, devd_buff, sizeof(devd_buff)) < 0)
-    {
-      fuse_session_destroy (se);
-      g_set_error (&thread_data->error, XDG_DESKTOP_PORTAL_ERROR,
-                   XDG_DESKTOP_PORTAL_ERROR_FAILED,
-                   "Can't read devd %s:", strerror(errno));
       return NULL;
     }
 
