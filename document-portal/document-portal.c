@@ -1483,7 +1483,6 @@ on_name_acquired (GDBusConnection *connection,
   struct stat stbuf;
   gpointer invocation;
   dev_t parent_dev;
-  int count = 0;
 
   g_debug ("%s acquired", name);
 
@@ -1498,8 +1497,7 @@ on_name_acquired (GDBusConnection *connection,
     }
 
   g_usleep (10000); /* 10ms */
-  count = 0;
-  while ((stat (xdp_fuse_get_mountpoint (), &stbuf) == -1 || parent_dev == 0 || stbuf.st_dev == parent_dev) && count < 10)
+  while (stat (xdp_fuse_get_mountpoint (), &stbuf) == -1 || parent_dev == 0 || stbuf.st_dev == parent_dev)
     g_usleep (10000); /* 10ms */
   
   fuse_dev = stbuf.st_dev;
