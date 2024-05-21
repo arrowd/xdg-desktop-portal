@@ -587,6 +587,7 @@ ensure_app_info_by_unique_name (void)
 static XdpAppInfo *
 parse_app_info_from_flatpak_info (int pid, GError **error)
 {
+#ifndef __FreeBSD__
   g_autofree char *root_path = NULL;
   int root_fd = -1;
   int info_fd = -1;
@@ -689,6 +690,9 @@ parse_app_info_from_flatpak_info (int pid, GError **error)
   app_info->u.flatpak.keyfile = g_steal_pointer (&metadata);
 
   return g_steal_pointer (&app_info);
+#else
+  return NULL;
+#endif
 }
 
 int
